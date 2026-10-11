@@ -1,6 +1,14 @@
 # Depop connector
 
-Drives Depop's web API using your logged-in browser session.
+Drives Depop's web API using your logged-in browser session: search listings,
+see your profile, and list your own items for sale.
+
+> **Unofficial — not affiliated with or endorsed by Depop.** It replays the
+> requests depop.com's own web app makes, from your machine, through your own
+> logged-in browser tab (Depop serves its API only to real browser sessions).
+> Automating your account may conflict with Depop's Terms of Service; use it on
+> your own account, at a human pace (the spec caps the request rate), and
+> dry-run `list` before posting anything.
 
 ```bash
 mastro login depop
@@ -132,7 +140,7 @@ notice. If `search` starts returning Cloudflare HTML or a shape without an
 2. Capture a fresh HAR from depop.com's Network tab and diff the
    `search/products` request against `openapi.yaml`.
 
-> Reverse-engineered from a real HAR (`www.depop.com.har`) plus the
+> Reverse-engineered from a HAR capture of depop.com plus the
 > earlier `depop-cli`. The HAR only exercised the `sizes` filter; the other
 > param names (`brandIds`, `colours`, `conditions`, `priceMin/Max`,
 > `isDiscounted`, `sortBy`) were recovered from the response payloads. The

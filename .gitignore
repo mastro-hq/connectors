@@ -1,0 +1,3 @@
+*.har
+.env
+.DS_Store

@@ -1,0 +1,19 @@
+name: validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mastro-hq/mastro-connect
+          path: .mastro-connect
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .mastro-connect
+      - run: bun run .mastro-connect/packages/cli/src/bin.ts validate providers/*

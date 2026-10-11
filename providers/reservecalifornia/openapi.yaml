@@ -1,0 +1,267 @@
+openapi: 3.1.0
+info:
+  title: ReserveCalifornia (unofficial)
+  version: reverse-engineered-2026-10-06
+  description: >
+    Reverse-engineered from www.reservecalifornia.com (California State Parks'
+    reservation site, built on Tyler Technologies' recreation platform — see
+    README). Operational, not a stable contract. The site is a React SPA over
+    two JSON APIs: a public search host (parks, campsite availability, unit
+    details — no auth, no bot wall) and an authenticated account host
+    (rdapi.reservecalifornia.com). This connector is search plus read-only
+    views of your own account; it does not book.
+
+# The account API's default server. Public search operations override it with
+# their own `servers` (the search host).
+servers:
+  - url: https://rdapi.reservecalifornia.com/api
+
+# --- replay choreography (mastro extension) --------------------------------
+# Account calls run through the extension, from the user's own
+# www.reservecalifornia.com tab: rdapi's CORS admits that origin with
+# credentials, so the fetch shares the tab's cookie session exactly like the
+# site's own calls. Public search operations opt out (x-mastro-transport:
+# direct) — no tab needed.
+x-mastro-replay:
+  via_browser: true
+  browser_tab_origin: https://www.reservecalifornia.com
+  recapture_on: [401]
+  rate_limit:
+    requests_per_minute: 30
+
+# --- how a captured session becomes a live request -------------------------
+# Login is Okta SSO (signin.reservecalifornia.com). After it, the SPA keeps the
+# Okta access token in plain localStorage (`accessToken`, and the same JWT
+# again as `ssoAccessToken`) and sends it as both a Bearer header and an
+# `accessToken` header, alongside two fixed tenant headers. The JWT lives 60
+# minutes — after that rdapi answers 401 and you re-run `mastro login`.
+x-mastro-auth:
+  required_fields: [access_token, sso_access_token]
+  verify: { operationId: household }
+  headers:
+    authorization: "Bearer ${auth.access_token}"
+    accesstoken: "${auth.sso_access_token}"
+    installationsidentity: cali
+    storeid: "111"
+  redact: [authorization, accesstoken]
+
+components:
+  securitySchemes:
+    oktaBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - oktaBearer: []
+
+paths:
+  # =========================================================================
+  # Public search (no login) — the Tyler "RDR" search host
+  # =========================================================================
+  /fd/citypark/namecontains/{name}:
+    get:
+      operationId: parks
+      x-mastro-command: parks
+      summary: Find parks by name (park ids for `park`).
+      description: >
+        Parks and cities whose name contains the text. Each result's PlaceId is
+        the park id used by `park`, and by the site's own URLs
+        (/park/<PlaceId>/<FacilityId>).
+      servers: [{ url: "https://california-rdr.prod.cali.rd12.recreation-management.tylerapp.com/rdr" }]
+      security: []
+      x-mastro-transport: direct
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Part of a park name, e.g. "big sur" or "pfeiffer".
+          schema: { type: string }
+      responses:
+        "200": { description: Matching parks/cities. }
+
+  /search/place:
+    post:
+      operationId: park
+      x-mastro-command: park
+      summary: A park's campgrounds (facilities) and their availability for a stay.
+      description: >
+        The park page's data: the park (SelectedPlace) with its Facilities —
+        each campground/area by FacilityId, with Available (any site free for
+        the whole stay), RateMessage and unit types. Use a FacilityId with
+        `availability` to see individual sites.
+      servers: [{ url: "https://california-rdr.prod.cali.rd12.recreation-management.tylerapp.com/rdr" }]
+      security: []
+      x-mastro-transport: direct
+      x-mastro-result: SelectedPlace
+      x-mastro-args:
+        - { name: park, required: true, description: "Park id (PlaceId from `parks`, e.g. 661)" }
+        - { name: date, required: true, description: "Arrival date, YYYY-MM-DD" }
+        - { name: nights, description: "Nights (default 1)" }
+      requestBody:
+        content:
+          application/json: {}
+      x-mastro-body:
+        PlaceId: "${num:args.park}"
+        StartDate: "${args.date}"
+        Nights: "${num:args.nights|1}"
+        CustomerId: 0
+        UnitCategoryId: 0
+        SleepingUnitId: 0
+        MinVehicleLength: 0
+        UnitTypesGroupIds: []
+        AmenityIds: []
+        IsADA: false
+        RestrictADA: false
+        InSeasonOnly: true
+        WebOnly: true
+      responses:
+        "200": { description: The park and its facilities. }
+
+  /search/grid:
+    post:
+      operationId: availability
+      x-mastro-command: availability
+      summary: Night-by-night availability of every site in a campground.
+      description: >
+        The campground's site grid: Facility.Units keyed by UnitId, each with
+        Name/ShortName and Slices — one per night ({Date, IsFree, IsBlocked,
+        IsWalkin, MinStay}). IsFree true = bookable. The server caps one call at
+        ~21 nights; page through longer ranges. Facility.Restrictions gives the
+        booking window (FutureBookingStarts/Ends) and Min/MaximumStay.
+      servers: [{ url: "https://california-rdr.prod.cali.rd12.recreation-management.tylerapp.com/rdr" }]
+      security: []
+      x-mastro-transport: direct
+      x-mastro-result: Facility
+      x-mastro-args:
+        - { name: facility, required: true, description: "Campground id (FacilityId, e.g. 518 — the 2nd number in /park/661/518)" }
+        - { name: start, required: true, description: "First night, YYYY-MM-DD" }
+        - { name: end, description: "Last night, YYYY-MM-DD (default: start; ~21-night max)" }
+      requestBody:
+        content:
+          application/json: {}
+      x-mastro-body:
+        FacilityId: "${num:args.facility}"
+        UnitSort: orderby
+        StartDate: "${args.start}"
+        EndDate: "${args.end|${args.start}}"
+        InSeasonOnly: true
+        WebOnly: true
+        IsADA: false
+        RestrictADA: false
+        UnitCategoryId: 0
+        SleepingUnitId: 0
+        MinVehicleLength: 0
+        UnitTypesGroupIds: []
+        AmenityIds: []
+        CustomerId: 0
+      responses:
+        "200": { description: The facility with its sites' nightly slices. }
+
+  /search/details/{unit}/startdate/{date}/nights/{nights}/0/{classification}:
+    get:
+      operationId: unit
+      x-mastro-command: unit
+      summary: One site's details and price for a stay.
+      description: >
+        Rate (per night) and Fee (reservation fee), occupancy limits
+        (NightlyUnit: MaxAdult, MaxOccupancy, MaxVehicles, check-in/out),
+        UnitType (with UnitCategoryId), amenities and photos. Unit.FacilityId
+        links back to the campground.
+      servers: [{ url: "https://california-rdr.prod.cali.rd12.recreation-management.tylerapp.com/rdr" }]
+      security: []
+      x-mastro-transport: direct
+      parameters:
+        - name: unit
+          in: path
+          required: true
+          description: Site id (UnitId from `availability`, e.g. 41990).
+          schema: { type: integer }
+        - name: date
+          in: path
+          required: true
+          description: Arrival date, YYYY-MM-DD.
+          schema: { type: string }
+        - name: nights
+          in: path
+          description: Nights (default 1).
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: classification
+          in: path
+          description: Customer classification id (1 = Regular, the default).
+          schema: { type: integer, default: 1 }
+      responses:
+        "200": { description: The unit's details. }
+
+  /fd/facilities/{facility}:
+    get:
+      operationId: facility
+      x-mastro-hidden: true
+      summary: A campground's metadata (its PlaceId, booking flags).
+      servers: [{ url: "https://california-rdr.prod.cali.rd12.recreation-management.tylerapp.com/rdr" }]
+      security: []
+      x-mastro-transport: direct
+      parameters:
+        - name: facility
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: The facility. }
+
+  # =========================================================================
+  # Account (login required) — rdapi
+  # =========================================================================
+  # Every rdapi response is an envelope: {"Response":1,"Result":…} on success;
+  # otherwise Response 2/3 with Message/ExceptionString — still HTTP 200.
+  /WebAccessCustomer/HouseholdInfo:
+    post:
+      operationId: household
+      x-mastro-command: me
+      summary: The logged-in account (customer id and name).
+      description: >
+        The account's household as [{Key: customerId, Value: name}] — the first
+        entry is you. A cheap authed probe (also the login verify).
+      x-mastro-result: Result.$values
+      requestBody:
+        content:
+          application/json: {}
+      x-mastro-body: {}
+      responses:
+        "200": { description: Household members. }
+
+  /WebAccessCustomer/Load/MyReservations:
+    post:
+      operationId: myReservations
+      x-mastro-hidden: true
+      summary: One page of the account's reservations (used by `reservations`).
+      responses:
+        "200": { description: A page of reservations. }
+
+  /x-mastro/reservations:
+    post:
+      operationId: reservations
+      x-mastro-command: reservations
+      summary: Your reservations arriving on/after a date.
+      description: >
+        The account's reservations (My Reservations), 5 per page, arriving on or
+        after --from. Read-only.
+      x-mastro-args:
+        - { name: from, required: true, description: "Earliest arrival date, YYYY-MM-DD" }
+        - { name: page, description: "Page, 0-based (default 0)" }
+      x-mastro-workflow:
+        result: list.Result
+        steps:
+          - id: household
+            operationId: household
+            request: { body: {} }
+            fail_when: ["${steps.household.Message}"]
+          - id: list
+            operationId: myReservations
+            request:
+              body:
+                familyMemberId: "${steps.household.Result.$values.0.Key}"
+                startDate: "${args.from}"
+                confirmationNumber: 0
+                page: "${num:args.page|0}"
+            fail_when: ["${steps.list.Message}"]

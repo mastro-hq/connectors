@@ -1,0 +1,46 @@
+{
+  "schema_version": "browser-auth-manifest/v1",
+  "provider_id": "reservecalifornia",
+  "display_name": "ReserveCalifornia",
+  "launch": {
+    "url": "https://www.reservecalifornia.com/",
+    "open_tab": true,
+    "expected_origins": ["https://www.reservecalifornia.com", "https://signin.reservecalifornia.com"],
+    "timeout_seconds": 300
+  },
+  "permissions": {
+    "host_permissions": ["https://www.reservecalifornia.com/*", "https://rdapi.reservecalifornia.com/*"],
+    "observes_cookies": false,
+    "observes_request_headers": false,
+    "observes_request_body": false,
+    "observes_response_headers": false,
+    "injects_page_bridge": true,
+    "observes_storage": true
+  },
+  "capture": {
+    "storage": [
+      {
+        "area": "local",
+        "keys": ["accessToken", "ssoAccessToken"]
+      }
+    ]
+  },
+  "completion": {
+    "all": [
+      { "storage_key_present": "local.accessToken" },
+      { "storage_key_present": "local.ssoAccessToken" }
+    ]
+  },
+  "serialization": {
+    "output_schema": "capture-bundle/reservecalifornia-web/v1",
+    "fields": {
+      "access_token": "${storage.local.accessToken}",
+      "sso_access_token": "${storage.local.ssoAccessToken}"
+    }
+  },
+  "security": {
+    "redact_fields": ["access_token", "sso_access_token"],
+    "persist_minimum": true,
+    "allowed_postback_origin": "http://127.0.0.1"
+  }
+}
