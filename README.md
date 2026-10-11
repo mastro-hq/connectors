@@ -7,19 +7,19 @@ manifest, an OpenAPI 3.1 spec, a README, and agent skills.
 
 | Connector | Login | What it covers | Last verified |
 | --- | --- | --- | --- |
+| [`hackernews`](providers/hackernews) | no | front page, items, users — the example connector, over HN's official API | 2026-10-11 |
 | [`reservecalifornia`](providers/reservecalifornia) | optional | California State Parks campsite search and availability (no login); your own reservations (login) | 2026-10-11 |
 | [`depop`](providers/depop) | yes | search listings, your profile, list your own items for sale | 2026-06-08 |
 
-The [`hackernews`](https://github.com/mastro-hq/mastro-connect/tree/main/providers/hackernews)
-example ships with mastro itself.
-
 ## Install
 
+Nothing to install up front: the first time you call a connector from this
+repo, mastro fetches it (pinned to a commit) and runs the command.
+
 ```bash
-npm install -g mastro-connect                 # needs Bun: https://bun.sh
-mastro providers add reservecalifornia        # fetched from this repo, pinned to a commit
-mastro reservecalifornia parks "big sur" --json
-mastro skills add reservecalifornia --global  # agent skills for it
+npx mastro-connect hackernews top --limit 5       # needs Bun: https://bun.sh
+npx mastro-connect reservecalifornia parks "big sur" --json
+npx mastro-connect setup                          # pick connectors, extension, agent skills
 ```
 
 `mastro providers update` re-fetches everything you've added. Connectors that
