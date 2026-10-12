@@ -17,7 +17,7 @@ Nothing to install up front: the first time you call a connector from this
 repo, mastro fetches it (pinned to a commit) and runs the command.
 
 ```bash
-npx mastro-connect hackernews top --limit 5       # needs Bun: https://bun.sh
+npx mastro-connect hackernews top --limit 5       # just Node; mastro brings its own runtime
 npx mastro-connect reservecalifornia parks "big sur" --json
 npx mastro-connect setup                          # pick connectors, extension, agent skills
 ```
