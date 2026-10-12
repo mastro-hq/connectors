@@ -62,7 +62,7 @@ mastro depop search ...
 | Command  | Endpoint / flow                                 |
 | -------- | ----------------------------------------------- |
 | `search` | `GET https://www.depop.com/presentation/api/v1/search/products/` |
-| `me`     | `GET /api/v1/users/{user_id}/` — ⚠️ see host note (currently 404s) |
+| `me`     | `GET https://webapi.depop.com/api/v1/users/{user_id}/` |
 | `list`   | multi-step workflow: upload photos → poll → create listing |
 
 > **Host split (important — it's the #1 source of 404s).** Depop serves its API
@@ -72,12 +72,8 @@ mastro depop search ...
 > **`webapi.depop.com`**. Hitting an `/api/*` path on `www` returns a Next.js
 > **404 HTML page** (`__next_error__`), not JSON — that HTML 404 is the signature
 > of "right path, wrong host." Workflow steps that need the webapi host set an
-> explicit `request.url`.
->
-> ⚠️ **Known gap:** the `me` command is a plain (non-workflow) operation, so it
-> can't set a per-step URL and still hits `www` → 404. It needs an operation-level
-> host override (the workflow `list` steps already work around this with explicit
-> `request.url`s).
+> explicit `request.url`; plain operations like `me` declare their own
+> operation-level `servers`.
 
 ### Listing an item
 

@@ -194,6 +194,9 @@ paths:
       operationId: me
       x-mastro-command: me
       summary: Show the logged-in user's profile.
+      # /api/* lives on webapi.depop.com; on www it's a Next.js 404 page.
+      servers:
+        - url: https://webapi.depop.com
       parameters:
         - name: user_id
           in: path
